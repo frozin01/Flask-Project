@@ -1,10 +1,52 @@
-from flask import Flask
+from flask import Flask, render_template, request, redirect, url_for
+from extensions import db
+from models import Product
 
-app = Flask(__name__)
+def create_app():
+    app = Flask(__name__)
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'postgresql://postgres:postgres@10.2.20.61:5432/flask-project-db'
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    
+    db.init_app(app)
 
-@app.route('/')
-def home():
-    return "Hello, Flask!"
+    # with app.app_context():
+    #     db.create_all()
+    
+    @app.route('/')
+    def index():
+        products = Product.query.filter_by(is_deleted=False).all()
+        return render_template('index.html', products=products)
+
+    @app.route('/add', methods=['GET', 'POST'])
+    def add_product():
+        if request.method == 'POST':
+            name = request.form['name']
+            price = request.form['price']
+            new_product = Product(name=name, price=price)
+            db.session.add(new_product)
+            db.session.commit()
+            return redirect(url_for('index'))
+        return render_template('add_product.html')
+
+    @app.route('/update/<int:id>', methods=['GET', 'POST'])
+    def update_product(id):
+        product = Product.query.get_or_404(id)
+        if request.method == 'POST':
+            product.name = request.form['name']
+            product.price = request.form['price']
+            db.session.commit()
+            return redirect(url_for('index'))
+        return render_template('update_product.html', product=product)
+
+    @app.route('/delete/<int:id>', methods=['GET', 'POST'])
+    def delete_product(id):
+        product = Product.query.get_or_404(id)
+        product.is_deleted = True
+        db.session.commit()
+        return redirect(url_for('index'))
+
+    return app
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app = create_app()
+    app.run(host='0.0.0.0', debug=True)
